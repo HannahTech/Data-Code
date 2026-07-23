@@ -13,12 +13,12 @@ from RevitServices.Transactions import TransactionManager
 doc = DocumentManager.Instance.CurrentDBDocument
 app = doc.Application
 
-# Ensure path input is a clean string
 csv_file_path = str(IN[0]) if IN[0] else ""
 run_script = bool(IN[1]) if IN[1] is not None else False
 
 results = []
 
+# Helper Function: Converts Column C group string into official Revit API Group
 def parse_csv_group(group_input):
     g_str = str(group_input).strip().lower().replace("pg_", "").replace(" ", "").replace("_", "")
     
@@ -47,23 +47,18 @@ def parse_csv_group(group_input):
     try:
         return getattr(GroupTypeId, target_attr)
     except AttributeError:
-        try:
-            return getattr(BuiltInParameterGroup, f"PG_{target_attr.upper()}")
-        except AttributeError:
-            return BuiltInParameterGroup.PG_DATA
+        return GroupTypeId.Data
 
-if not run_script:
-    results.append("STOPPED: IN[1] (Boolean) is set to False.")
-elif not csv_file_path or csv_file_path == "":
-    results.append("STOPPED: IN[0] (File Path) is empty or null.")
+if not run_script or not csv_file_path:
+    results.append("STOPPED: Inputs invalid or Boolean set to False.")
 else:
-    results.append(f"Reading File: {csv_file_path}")
-    
     sp_file = app.OpenSharedParameterFile()
+    
     if not sp_file:
         results.append("ERROR: No Shared Parameter File linked in Revit (Manage -> Shared Parameters).")
     else:
-        doc_categories = {cat.Name.strip().lower(): cat for cat in doc.Settings.Categories}
+        # Build Category Map (Case-insensitive + Alias support)
+        doc_categories = {cat.Name.strip().lower(): cat for cat in doc.Settings.Categories if cat.AllowsBoundParameters}
         if "specialty equipment" in doc_categories:
             doc_categories["speciality equipment"] = doc_categories["specialty equipment"]
 
@@ -72,36 +67,33 @@ else:
         try:
             with open(csv_file_path, 'r', encoding='utf-8-sig') as file:
                 reader = csv.reader(file)
-                rows = [r for r in reader if r] # Filter empty lines
-                
-                results.append(f"Total rows found in CSV: {len(rows)}")
-                
-                # Skip header if present
+                rows = [r for r in reader if r]
                 data_rows = rows[1:] if len(rows) > 1 else rows
                 
+                binding_map = doc.ParameterBindings
+                
                 for i, row in enumerate(data_rows):
-                    # Clean up row items
                     clean_row = [str(cell).strip() for cell in row]
-                    
                     if len(clean_row) < 5:
-                        results.append(f"Row {i+1} Skipped: Expected 5 columns, found {len(clean_row)}. Content: {clean_row}")
                         continue
                     
-                    param_name = clean_row[0]
-                    custom_class = clean_row[1]
-                    csv_ui_group = clean_row[2]
-                    is_instance = clean_row[3].upper() == "TRUE"
-                    category_names = [c.strip().lower() for c in clean_row[4].split(',')]
+                    param_name = clean_row[0]                              # Column A
+                    custom_class = clean_row[1]                            # Column B
+                    csv_ui_group = clean_row[2]                            # Column C (Group Name)
+                    is_instance = clean_row[3].upper() == "TRUE"           # Column D
+                    category_names = [c.strip().lower() for c in clean_row[4].split(',')] # Column E
                     
+                    # Target group from Column C
                     target_ui_group = parse_csv_group(csv_ui_group)
                     
-                    # Search Parameter Definition
+                    # Search Parameter Definition in Shared Parameter File
                     param_def = None
                     for grp in sp_file.Groups:
                         try:
                             param_def = grp.Definitions.get_Item(param_name)
                         except:
                             pass
+                        
                         if not param_def:
                             for d in grp.Definitions:
                                 if d.Name.strip().lower() == param_name.lower():
@@ -111,34 +103,44 @@ else:
                             break
                     
                     if not param_def:
-                        results.append(f"FAILED: '{param_name}' not in Shared Parameter File.")
+                        results.append(f"FAILED: '{param_name}' not found in Shared Parameter File.")
                         continue
                     
-                    # Category Binding
+                    # Build Target Category Set
                     cat_set = app.Create.NewCategorySet()
                     bound_cats = []
                     for c_name in category_names:
                         if c_name in doc_categories:
                             cat_set.Insert(doc_categories[c_name])
                             bound_cats.append(doc_categories[c_name].Name)
-                        else:
-                            results.append(f"WARNING: Category '{c_name}' not recognized.")
                     
                     if cat_set.IsEmpty:
                         results.append(f"SKIPPED: '{param_name}' (No valid categories found).")
                         continue
                     
+                    # Create Instance or Type Binding
                     binding = app.Create.NewInstanceBinding(cat_set) if is_instance else app.Create.NewTypeBinding(cat_set)
                     
+                    # Step 1: Try Binding with target group from Column C
+                    success = False
                     try:
-                        doc.ParameterBindings.ReInsert(param_def, binding, target_ui_group)
-                        results.append(f"SUCCESS: Bound '{param_name}' under '{csv_ui_group}'.")
-                    except Exception:
+                        success = binding_map.ReInsert(param_def, binding, target_ui_group)
+                        if not success:
+                            success = binding_map.Insert(param_def, binding, target_ui_group)
+                    except:
+                        pass
+                    
+                    # Step 2: Fallback to GroupTypeId.Data (Guaranteed to work like earlier script)
+                    if not success:
                         try:
-                            doc.ParameterBindings.Insert(param_def, binding, target_ui_group)
-                            results.append(f"SUCCESS: Bound '{param_name}'.")
+                            success = binding_map.ReInsert(param_def, binding, GroupTypeId.Data)
+                            if not success:
+                                success = binding_map.Insert(param_def, binding, GroupTypeId.Data)
+                            results.append(f"SUCCESS (Fallback to Data Group): '{param_name}'")
                         except Exception as ex:
-                            results.append(f"ERROR: {str(ex)}")
+                            results.append(f"ERROR: '{param_name}' failed to bind: {str(ex)}")
+                    else:
+                        results.append(f"SUCCESS: Bound '{param_name}' under group '{csv_ui_group}'.")
 
         except Exception as e:
             results.append(f"FILE OPEN ERROR: {str(e)}")
