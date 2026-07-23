@@ -19,6 +19,15 @@ run_script = IN[1]
 
 results = []
 
+# Define parameter group safely across Revit versions (Revit 2024+ vs older)
+try:
+    param_group = GroupTypeId.Data
+except AttributeError:
+    try:
+        param_group = BuiltInParameterGroup.PG_DATA
+    except NameError:
+        param_group = BuiltInParameterGroup.INVALID
+
 if run_script and csv_file_path:
     # 1. Access Shared Parameter File linked in Revit
     sp_file = app.OpenSharedParameterFile()
@@ -34,9 +43,9 @@ if run_script and csv_file_path:
         # 3. Read CSV File
         TransactionManager.Instance.EnsureInTransaction(doc)
         
-        with open(csv_file_path, 'r') as file:
+        with open(csv_file_path, 'r', encoding='utf-8-sig') as file:
             reader = csv.reader(file)
-            header = next(reader)  # Skip header row
+            header = next(reader, None)  # Skip header row
             
             for row in reader:
                 if not row or len(row) < 4:
@@ -50,12 +59,21 @@ if run_script and csv_file_path:
                 # Find parameter definition in SP File
                 param_def = None
                 for grp in sp_file.Groups:
-                    param_def = grp.Definitions.Item[param_name]
+                    try:
+                        param_def = grp.Definitions.get_Item(param_name)
+                    except:
+                        pass
+                    
+                    if not param_def:
+                        for d in grp.Definitions:
+                            if d.Name.strip().lower() == param_name.strip().lower():
+                                param_def = d
+                                break
                     if param_def:
                         break
                 
                 if not param_def:
-                    results.append(f"FAILED: Parameter '{param_name}' not found in SP File.")
+                    results.append(f"FAILED: Parameter '{param_name}' not found in Shared Parameter File.")
                     continue
                 
                 # Build Target Category Set
@@ -79,13 +97,13 @@ if run_script and csv_file_path:
                 else:
                     binding = app.Create.NewTypeBinding(cat_set)
                 
-                # Map to Revit UI Group (Default to Data/PG_DATA)
+                # Map to Revit UI Group
                 try:
-                    doc.ParameterBindings.Insert(param_def, binding, BuiltInParameterGroup.PG_DATA)
+                    doc.ParameterBindings.Insert(param_def, binding, param_group)
                     results.append(f"SUCCESS: Bound '{param_name}' to {len(bound_cats)} categories.")
-                except Exception as e:
-                    # If already bound, re-bind (update)
-                    doc.ParameterBindings.ReInsert(param_def, binding, BuiltInParameterGroup.PG_DATA)
+                except Exception:
+                    # If already bound, update binding
+                    doc.ParameterBindings.ReInsert(param_def, binding, param_group)
                     results.append(f"UPDATED: '{param_name}' binding updated.")
 
         TransactionManager.Instance.TransactionTaskDone()
