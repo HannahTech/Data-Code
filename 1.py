@@ -18,11 +18,10 @@ run_script = IN[1]
 
 results = []
 
-# Helper Function: Converts Excel string into actual Revit GroupTypeId or BuiltInParameterGroup
+# Helper Function: Converts Excel Group string (Column C) into Revit API Group
 def parse_excel_group(group_input):
     g_str = str(group_input).strip().lower().replace("pg_", "").replace(" ", "").replace("_", "")
     
-    # Map common Excel inputs to Revit API GroupTypeId (Revit 2024+) with fallback
     group_map = {
         "identitydata": "IdentityData",
         "identity": "IdentityData",
@@ -45,11 +44,9 @@ def parse_excel_group(group_input):
     
     target_attr = group_map.get(g_str, "Data")
     
-    # Try Revit 2024+ GroupTypeId first
     try:
         return getattr(GroupTypeId, target_attr)
     except AttributeError:
-        # Fallback for older Revit versions
         try:
             return getattr(BuiltInParameterGroup, f"PG_{target_attr.upper()}")
         except AttributeError:
@@ -61,7 +58,6 @@ if run_script and raw_data:
     if not sp_file:
         results.append("ERROR: No Shared Parameter File linked in Revit.")
     else:
-        # Build Category Map
         doc_categories = {}
         for cat in doc.Settings.Categories:
             doc_categories[cat.Name.strip().lower()] = cat
@@ -74,18 +70,19 @@ if run_script and raw_data:
         data_rows = raw_data[1:] if len(raw_data) > 1 else []
         
         for row in data_rows:
-            if not row or len(row) < 4:
+            if not row or len(row) < 5:
                 continue
             
-            param_name = str(row[0]).strip()
-            excel_group = str(row[1]).strip()
-            is_instance = str(row[2]).strip().upper() == "TRUE"
-            category_names = [c.strip().lower() for c in str(row[3]).split(',')]
+            param_name = str(row[0]).strip()          # Column A (Index 0)
+            custom_class = str(row[1]).strip()        # Column B (Index 1 - Kept for reference)
+            excel_ui_group = str(row[2]).strip()      # Column C (Index 2 - Revit UI Group)
+            is_instance = str(row[3]).strip().upper() == "TRUE" # Column D (Index 3)
+            category_names = [c.strip().lower() for c in str(row[4]).split(',')] # Column E (Index 4)
             
-            # Parse target group directly from Excel Column B
-            target_ui_group = parse_excel_group(excel_group)
+            # Parse target group from Column C
+            target_ui_group = parse_excel_group(excel_ui_group)
             
-            # Search for parameter definition in SP File
+            # Search parameter definition
             param_def = None
             for grp in sp_file.Groups:
                 try:
@@ -118,16 +115,14 @@ if run_script and raw_data:
                 results.append(f"SKIPPED: '{param_name}' (No valid categories found).")
                 continue
             
-            # Create Instance or Type Binding
             if is_instance:
                 binding = app.Create.NewInstanceBinding(cat_set)
             else:
                 binding = app.Create.NewTypeBinding(cat_set)
             
-            # ReInsert / Insert to target group read from Excel
             try:
                 doc.ParameterBindings.ReInsert(param_def, binding, target_ui_group)
-                results.append(f"SUCCESS: '{param_name}' assigned to '{excel_group}'.")
+                results.append(f"SUCCESS: '{param_name}' bound under '{excel_ui_group}'.")
             except Exception:
                 try:
                     doc.ParameterBindings.Insert(param_def, binding, target_ui_group)
