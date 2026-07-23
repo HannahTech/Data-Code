@@ -1,5 +1,4 @@
 import clr
-import csv
 
 # Import Revit API
 clr.AddReference('RevitAPI')
@@ -14,97 +13,127 @@ doc = DocumentManager.Instance.CurrentDBDocument
 app = doc.Application
 
 # Inputs from Dynamo
-csv_file_path = IN[0]
+raw_data = IN[0]  # Excel Data
 run_script = IN[1]
 
 results = []
 
-# Define parameter group safely across Revit versions (Revit 2024+ vs older)
-try:
-    param_group = GroupTypeId.Data
-except AttributeError:
+# Helper Function: Converts Excel string into actual Revit GroupTypeId or BuiltInParameterGroup
+def parse_excel_group(group_input):
+    g_str = str(group_input).strip().lower().replace("pg_", "").replace(" ", "").replace("_", "")
+    
+    # Map common Excel inputs to Revit API GroupTypeId (Revit 2024+) with fallback
+    group_map = {
+        "identitydata": "IdentityData",
+        "identity": "IdentityData",
+        "constraints": "Constraints",
+        "data": "Data",
+        "dimensions": "Dimensions",
+        "geometry": "Dimensions",
+        "ifc": "Ifc",
+        "phasing": "Phasing",
+        "text": "Text",
+        "general": "General",
+        "analysisresults": "AnalysisResults",
+        "mechanical": "Mechanical",
+        "electrical": "Electrical",
+        "plumbing": "Plumbing",
+        "fireprotection": "FireProtection",
+        "graphics": "Graphics",
+        "modelproperties": "ModelProperties"
+    }
+    
+    target_attr = group_map.get(g_str, "Data")
+    
+    # Try Revit 2024+ GroupTypeId first
     try:
-        param_group = BuiltInParameterGroup.PG_DATA
-    except NameError:
-        param_group = BuiltInParameterGroup.INVALID
+        return getattr(GroupTypeId, target_attr)
+    except AttributeError:
+        # Fallback for older Revit versions
+        try:
+            return getattr(BuiltInParameterGroup, f"PG_{target_attr.upper()}")
+        except AttributeError:
+            return BuiltInParameterGroup.PG_DATA
 
-if run_script and csv_file_path:
-    # 1. Access Shared Parameter File linked in Revit
+if run_script and raw_data:
     sp_file = app.OpenSharedParameterFile()
     
     if not sp_file:
-        results.append("ERROR: No Shared Parameter File linked in Revit (Manage -> Shared Parameters).")
+        results.append("ERROR: No Shared Parameter File linked in Revit.")
     else:
-        # 2. Build Category Lookup Map (Case-insensitive)
+        # Build Category Map
         doc_categories = {}
         for cat in doc.Settings.Categories:
             doc_categories[cat.Name.strip().lower()] = cat
+        
+        if "specialty equipment" in doc_categories:
+            doc_categories["speciality equipment"] = doc_categories["specialty equipment"]
 
-        # 3. Read CSV File
         TransactionManager.Instance.EnsureInTransaction(doc)
         
-        with open(csv_file_path, 'r', encoding='utf-8-sig') as file:
-            reader = csv.reader(file)
-            header = next(reader, None)  # Skip header row
+        data_rows = raw_data[1:] if len(raw_data) > 1 else []
+        
+        for row in data_rows:
+            if not row or len(row) < 4:
+                continue
             
-            for row in reader:
-                if not row or len(row) < 4:
-                    continue
-                
-                param_name = row[0].strip()
-                group_name = row[1].strip()
-                is_instance = row[2].strip().upper() == "TRUE"
-                category_names = [c.strip().lower() for c in row[3].split(',')]
-                
-                # Find parameter definition in SP File
-                param_def = None
-                for grp in sp_file.Groups:
-                    try:
-                        param_def = grp.Definitions.get_Item(param_name)
-                    except:
-                        pass
-                    
-                    if not param_def:
-                        for d in grp.Definitions:
-                            if d.Name.strip().lower() == param_name.strip().lower():
-                                param_def = d
-                                break
-                    if param_def:
-                        break
+            param_name = str(row[0]).strip()
+            excel_group = str(row[1]).strip()
+            is_instance = str(row[2]).strip().upper() == "TRUE"
+            category_names = [c.strip().lower() for c in str(row[3]).split(',')]
+            
+            # Parse target group directly from Excel Column B
+            target_ui_group = parse_excel_group(excel_group)
+            
+            # Search for parameter definition in SP File
+            param_def = None
+            for grp in sp_file.Groups:
+                try:
+                    param_def = grp.Definitions.get_Item(param_name)
+                except:
+                    pass
                 
                 if not param_def:
-                    results.append(f"FAILED: Parameter '{param_name}' not found in Shared Parameter File.")
-                    continue
-                
-                # Build Target Category Set
-                cat_set = app.Create.NewCategorySet()
-                bound_cats = []
-                
-                for c_name in category_names:
-                    if c_name in doc_categories:
-                        cat_set.Insert(doc_categories[c_name])
-                        bound_cats.append(doc_categories[c_name].Name)
-                    else:
-                        results.append(f"WARNING: Category '{c_name}' not recognized in Revit.")
-                
-                if cat_set.IsEmpty:
-                    results.append(f"SKIPPED: '{param_name}' (No valid categories found).")
-                    continue
-                
-                # Create Instance or Type Binding
-                if is_instance:
-                    binding = app.Create.NewInstanceBinding(cat_set)
-                else:
-                    binding = app.Create.NewTypeBinding(cat_set)
-                
-                # Map to Revit UI Group
+                    for d in grp.Definitions:
+                        if d.Name.strip().lower() == param_name.strip().lower():
+                            param_def = d
+                            break
+                if param_def:
+                    break
+            
+            if not param_def:
+                results.append(f"FAILED: '{param_name}' not in Shared Parameter File.")
+                continue
+            
+            # Build Target Category Set
+            cat_set = app.Create.NewCategorySet()
+            bound_cats = []
+            
+            for c_name in category_names:
+                if c_name in doc_categories:
+                    cat_set.Insert(doc_categories[c_name])
+                    bound_cats.append(doc_categories[c_name].Name)
+            
+            if cat_set.IsEmpty:
+                results.append(f"SKIPPED: '{param_name}' (No valid categories found).")
+                continue
+            
+            # Create Instance or Type Binding
+            if is_instance:
+                binding = app.Create.NewInstanceBinding(cat_set)
+            else:
+                binding = app.Create.NewTypeBinding(cat_set)
+            
+            # ReInsert / Insert to target group read from Excel
+            try:
+                doc.ParameterBindings.ReInsert(param_def, binding, target_ui_group)
+                results.append(f"SUCCESS: '{param_name}' assigned to '{excel_group}'.")
+            except Exception:
                 try:
-                    doc.ParameterBindings.Insert(param_def, binding, param_group)
-                    results.append(f"SUCCESS: Bound '{param_name}' to {len(bound_cats)} categories.")
-                except Exception:
-                    # If already bound, update binding
-                    doc.ParameterBindings.ReInsert(param_def, binding, param_group)
-                    results.append(f"UPDATED: '{param_name}' binding updated.")
+                    doc.ParameterBindings.Insert(param_def, binding, target_ui_group)
+                    results.append(f"SUCCESS: '{param_name}' bound.")
+                except Exception as ex:
+                    results.append(f"ERROR: {str(ex)}")
 
         TransactionManager.Instance.TransactionTaskDone()
 
