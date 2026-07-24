@@ -1,0 +1,55 @@
+{
+  "building": {
+    "id": "toronto_building_01",
+    "name": "Toronto Tower",
+    "floors": 12,
+    "levels": [
+      {
+        "id": "EXIST._FIN._2ND_FL.",
+        "name": "EXIST. FIN. 2ND FL.",
+        "rooms": [
+          {
+            "id": "37c1cdb8-e0fe-474d-809c-3ea23b8c177f-006a2a98",
+            "number": "725",
+            "name": "MasterBedRoom",
+            "area_sqm": 23.48,
+            "camera": {
+              "eye": [0, 0, 0],
+              "target": [0, 0, 0]
+            },
+            "assets": [
+              {
+                "id": "37c1cdb8-e0fe-474d-809c-3ea23b8c177f-006a2aa5",
+                "family": "RPC Plant - Tropical",
+                "type": "Dagger - 2'",
+                "shared_parameters": {}
+              }
+            ]
+          },
+          {
+            "id": "37c1cdb8-e0fe-474d-809c-3ea23b8c177f-006a2a9a",
+            "number": "726",
+            "name": "BEDROOM 2",
+            "area_sqm": 15.84,
+            "camera": {
+              "eye": [-65.23, -25.8, 159.89],
+              "target": [-62.38, -29.91, 159.89]
+            },
+            "assets": []
+          },
+          {
+            "id": "37c1cdb8-e0fe-474d-809c-3ea23b8c177f-006a2a9c",
+            "number": "727",
+            "name": "BathRoom",
+            "area_sqm": 15.4,
+            "camera": {
+              "eye": [0, 0, 0],
+              "target": [0, 0, 0]
+            },
+            "assets": []
+          }
+        ]
+      }
+    ]
+  }
+}

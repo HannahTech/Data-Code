@@ -1,0 +1,486 @@
+{
+  "Uuid": "c75fd37f-178d-4946-944e-ced2cad6f304",
+  "IsCustomNode": false,
+  "Description": "",
+  "Name": "Rooms Extractor",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "DSRevitNodesUI.Categories, DSRevitNodesUI",
+      "SelectedIndex": 508,
+      "SelectedString": "OST_Rooms",
+      "Id": "1e91c561fdbe482e88edebff528c0568",
+      "NodeType": "ExtensionNode",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "59487cd26a6c4125b72b0d57a032677e",
+          "Name": "Category",
+          "Description": "The selected Category.",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "All built-in categories."
+    },
+    {
+      "ConcreteType": "DSRevitNodesUI.ElementsOfCategory, DSRevitNodesUI",
+      "Id": "094ddc52c28f4398aedd3e4e0d4bbfc5",
+      "NodeType": "ExtensionNode",
+      "Inputs": [
+        {
+          "Id": "4d986a34db314ba898535e522917fadb",
+          "Name": "Category",
+          "Description": "The Category",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "555b6252b6a1420db9df06dcbfc926c7",
+          "Name": "Elements",
+          "Description": "An element class.",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Get all elements of the specified category from the model."
+    },
+    {
+      "ConcreteType": "DSRevitNodesUI.Categories, DSRevitNodesUI",
+      "SelectedIndex": 435,
+      "SelectedString": "OST_Planting",
+      "Id": "e819757a60b5403387c9391a1d2fb27a",
+      "NodeType": "ExtensionNode",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "9b176d637f4741479779207abf8951ca",
+          "Name": "Category",
+          "Description": "The selected Category.",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "All built-in categories."
+    },
+    {
+      "ConcreteType": "DSRevitNodesUI.ElementsOfCategory, DSRevitNodesUI",
+      "Id": "4e56e25e355642e680676e114e67d240",
+      "NodeType": "ExtensionNode",
+      "Inputs": [
+        {
+          "Id": "7393af0ac3474dbf8b9d341bafd21087",
+          "Name": "Category",
+          "Description": "The Category",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "4f9f7b64d34747b5848ada5737d3e912",
+          "Name": "Elements",
+          "Description": "An element class.",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Get all elements of the specified category from the model."
+    },
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "import clr\r\nimport json\r\n\r\n# Import Revit API\r\nclr.AddReference('RevitAPI')\r\nfrom Autodesk.Revit.DB import *\r\n\r\nclr.AddReference('RevitServices')\r\nfrom RevitServices.Persistence import DocumentManager\r\n\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\n\r\n# Unwrap Dynamo elements\r\nrooms = UnwrapElement(IN[0]) if isinstance(IN[0], list) else [UnwrapElement(IN[0])]\r\nfurniture_list = UnwrapElement(IN[1]) if isinstance(IN[1], list) else [UnwrapElement(IN[1])]\r\n\r\nbuilding_dataset = {\r\n    \"building\": {\r\n        \"id\": \"toronto_building_01\",\r\n        \"name\": \"Toronto Tower\",\r\n        \"floors\": 12,\r\n        \"levels\": []\r\n    }\r\n}\r\n\r\nlevel_dict = {}\r\n\r\n# 1. Process Rooms\r\nfor room in rooms:\r\n    if not room or room.Area == 0:  # Skip unplaced or unbounded rooms\r\n        continue\r\n        \r\n    level_name = room.Level.Name if room.Level else \"Level 01\"\r\n    room_id = room.UniqueId\r\n    room_number = room.Number\r\n    room_name = room.get_Parameter(BuiltInParameter.ROOM_NAME).AsString()\r\n    room_area = round(room.Area * 0.092903, 2)  # Sq.Ft to Sq.Meters\r\n    \r\n    if level_name not in level_dict:\r\n        level_dict[level_name] = {\r\n            \"id\": level_name.replace(\" \", \"_\"),\r\n            \"name\": level_name,\r\n            \"rooms\": []\r\n        }\r\n        \r\n    # Find furniture located inside this room using spatial/phase check safely\r\n    room_assets = []\r\n    for furn in furniture_list:\r\n        if not furn:\r\n            continue\r\n        \r\n        # Safe extraction for CPython3\r\n        furn_room = None\r\n        try:\r\n            # Check phase-assigned room safely\r\n            phase = doc.GetElement(furn.CreatedPhaseId)\r\n            if hasattr(furn, 'get_Room'):\r\n                furn_room = furn.get_Room(phase)\r\n            elif hasattr(furn, 'Room'):\r\n                furn_room = furn.Room\r\n        except:\r\n            pass\r\n\r\n        if furn_room and furn_room.UniqueId == room_id:\r\n            # Extract Shared Parameters safely\r\n            param_data = {}\r\n            for param in furn.Parameters:\r\n                if param.IsShared and param.HasValue:\r\n                    val = param.AsString()\r\n                    if not val:\r\n                        val = str(round(param.AsDouble(), 2))\r\n                    param_data[param.Definition.Name] = val\r\n            \r\n            fam_name = furn.Symbol.Family.Name if hasattr(furn, 'Symbol') else \"Generic\"\r\n            \r\n            room_assets.append({\r\n                \"id\": furn.UniqueId,\r\n                \"family\": fam_name,\r\n                \"type\": furn.Name,\r\n                \"shared_parameters\": param_data\r\n            })\r\n\r\n    level_dict[level_name][\"rooms\"].append({\r\n        \"id\": room_id,\r\n        \"number\": room_number,\r\n        \"name\": room_name,\r\n        \"area_sqm\": room_area,\r\n        \"camera\": { \"eye\": [0, 0, 0], \"target\": [0, 0, 0] },\r\n        \"assets\": room_assets\r\n    })\r\n\r\n# Format into output dictionary\r\nfor lvl in level_dict.values():\r\n    building_dataset[\"building\"][\"levels\"].append(lvl)\r\n\r\nOUT = json.dumps(building_dataset, indent=2)",
+      "Engine": "CPython3",
+      "VariableInputPorts": true,
+      "Id": "dea72961be214ce38078953d679ea65f",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "ddcd5c9c02e546b5881830688e6dad9f",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "3d16f3884cfe41a0a9aca1a344010ad4",
+          "Name": "IN[1]",
+          "Description": "Input #1",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "a9e0687bd48f40dbba2294f039f343bc",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "Dynamo.Graph.Nodes.ZeroTouch.DSFunction, DynamoCore",
+      "Id": "3749f0e3fd82467196b989aeebb810ad",
+      "NodeType": "FunctionNode",
+      "Inputs": [
+        {
+          "Id": "029c739c28924fb59499cf0d4d9a1c95",
+          "Name": "filePath",
+          "Description": "Path to write to\n\nstring",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "27c217ea4b044cb1a5617eb4be33f242",
+          "Name": "text",
+          "Description": "Text content\n\nstring",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "876d2860aae8440ba82b03c9d3c8526f",
+          "Name": "void",
+          "Description": "No output",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "FunctionSignature": "DSCore.IO.FileSystem.WriteText@string,string",
+      "Replication": "Auto",
+      "Description": "Write the text content to a file specified by the path\n\nFileSystem.WriteText (filePath: string, text: string): void"
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.Filename, CoreNodeModels",
+      "Id": "7ad815ce4dc44092b585ac288dd8eab0",
+      "NodeType": "ExtensionNode",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "a7de7b040ad9432bba2e4bd7cbf0a08a",
+          "Name": "",
+          "Description": "File Path",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Allows you to select a file on the system and returns its file path",
+      "HintPath": null,
+      "InputValue": "C:\\Users\\heny\\Desktop\\building_data.json"
+    },
+    {
+      "ConcreteType": "DSRevitNodesUI.Views, DSRevitNodesUI",
+      "SelectedIndex": 40,
+      "SelectedString": "RoomView",
+      "Id": "a886c0aa6f12406f8ffa47c9c4362657",
+      "NodeType": "ExtensionNode",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "e874b4d1ff6947f494991cc7c31ce387",
+          "Name": "Views",
+          "Description": "The selected Views",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "All views available in the current document."
+    },
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "import clr\r\nclr.AddReference('RevitAPI')\r\nfrom Autodesk.Revit.DB import *\r\n\r\nview3d = UnwrapElement(IN[0])\r\n\r\nif isinstance(view3d, View3D) and view3d.IsPerspective:\r\n    # Extract Camera Orientation\r\n    orientation = view3d.GetOrientation()\r\n    \r\n    # Converts Revit Internal Feet to Meters for WebGL (Three.js)\r\n    eye = [round(orientation.EyePosition.X * 0.3048, 2), \r\n           round(orientation.EyePosition.Y * 0.3048, 2), \r\n           round(orientation.EyePosition.Z * 0.3048, 2)]\r\n           \r\n    forward_vector = orientation.ForwardDirection\r\n    \r\n    # Calculate target point 5 meters in front of the camera direction\r\n    target = [round(eye[0] + forward_vector.X * 5.0, 2),\r\n              round(eye[1] + forward_vector.Y * 5.0, 2),\r\n              round(eye[2] + forward_vector.Z * 5.0, 2)]\r\n\r\n    OUT = { \"eye\": eye, \"target\": target }\r\nelse:\r\n    OUT = \"Selected View is not a 3D Perspective Camera View.\"",
+      "Engine": "CPython3",
+      "VariableInputPorts": true,
+      "Id": "88ae8622f5cc4fd6a3c33173a4c25b82",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "0d92c2562e8446c68093f99ff90c30d8",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "f7bb4d4ce36e4ac783805b80c04fc113",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "59487cd26a6c4125b72b0d57a032677e",
+      "End": "4d986a34db314ba898535e522917fadb",
+      "Id": "722864b8d34d4f75915b9977253ade61",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "555b6252b6a1420db9df06dcbfc926c7",
+      "End": "ddcd5c9c02e546b5881830688e6dad9f",
+      "Id": "1c3450d2ef3b4cd38d2cf34ef5ea4ab1",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "9b176d637f4741479779207abf8951ca",
+      "End": "7393af0ac3474dbf8b9d341bafd21087",
+      "Id": "411dc2e99c264d5993d220656004aba2",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "4f9f7b64d34747b5848ada5737d3e912",
+      "End": "3d16f3884cfe41a0a9aca1a344010ad4",
+      "Id": "9c3afcaf53f44636bb790a532e53ef1f",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "a9e0687bd48f40dbba2294f039f343bc",
+      "End": "27c217ea4b044cb1a5617eb4be33f242",
+      "Id": "1cf8d399506a4aabb1dc51bd4573e498",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "a7de7b040ad9432bba2e4bd7cbf0a08a",
+      "End": "029c739c28924fb59499cf0d4d9a1c95",
+      "Id": "313cc44c6c18444083feb41c58f687eb",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "e874b4d1ff6947f494991cc7c31ce387",
+      "End": "0d92c2562e8446c68093f99ff90c30d8",
+      "Id": "295f6fa2c0724cca963a85664e7c02f3",
+      "IsHidden": "False"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "EnableLegacyPolyCurveBehavior": true,
+  "Thumbnail": "",
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Properties",
+      "Version": "3.6",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "9.1",
+      "Data": {}
+    }
+  ],
+  "Author": "",
+  "Linting": {
+    "activeLinter": "None",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "3.6.2.11575",
+      "RunType": "Manual",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "_Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Id": "1e91c561fdbe482e88edebff528c0568",
+        "Name": "Categories",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": true,
+        "ShowGeometry": true,
+        "X": 157.0,
+        "Y": 240.0
+      },
+      {
+        "Id": "094ddc52c28f4398aedd3e4e0d4bbfc5",
+        "Name": "All Elements of Category",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": true,
+        "ShowGeometry": true,
+        "X": 497.0,
+        "Y": 240.0
+      },
+      {
+        "Id": "e819757a60b5403387c9391a1d2fb27a",
+        "Name": "Categories",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": true,
+        "ShowGeometry": true,
+        "X": 155.13052598334247,
+        "Y": -178.34557500339022
+      },
+      {
+        "Id": "4e56e25e355642e680676e114e67d240",
+        "Name": "All Elements of Category",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": true,
+        "ShowGeometry": true,
+        "X": 495.13052598334247,
+        "Y": -178.34557500339022
+      },
+      {
+        "Id": "dea72961be214ce38078953d679ea65f",
+        "Name": "Python Script",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": true,
+        "ShowGeometry": true,
+        "X": 961.2209334330817,
+        "Y": 0.04852911540814375
+      },
+      {
+        "Id": "3749f0e3fd82467196b989aeebb810ad",
+        "Name": "FileSystem.WriteText",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": true,
+        "ShowGeometry": true,
+        "X": 1211.1053502358382,
+        "Y": 470.4191960382438
+      },
+      {
+        "Id": "7ad815ce4dc44092b585ac288dd8eab0",
+        "Name": "File Path",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": true,
+        "ShowGeometry": true,
+        "X": 721.0655651407292,
+        "Y": 569.0302737823081
+      },
+      {
+        "Id": "a886c0aa6f12406f8ffa47c9c4362657",
+        "Name": "Views",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 1710.8350231505747,
+        "Y": -570.7407517912688
+      },
+      {
+        "Id": "88ae8622f5cc4fd6a3c33173a4c25b82",
+        "Name": "Python Script",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 2068.678539585375,
+        "Y": -571.7843768477808
+      }
+    ],
+    "Annotations": [
+      {
+        "Id": "6f4d99a5af7c4051be63ceb1bd8665d2",
+        "Title": "Title <Double click here to edit group title>",
+        "DescriptionText": "Description <Double click here to edit group description>",
+        "IsExpanded": true,
+        "WidthAdjustment": 0.0,
+        "HeightAdjustment": 0.0,
+        "Nodes": [
+          "1e91c561fdbe482e88edebff528c0568",
+          "094ddc52c28f4398aedd3e4e0d4bbfc5",
+          "e819757a60b5403387c9391a1d2fb27a",
+          "4e56e25e355642e680676e114e67d240",
+          "dea72961be214ce38078953d679ea65f",
+          "3749f0e3fd82467196b989aeebb810ad",
+          "7ad815ce4dc44092b585ac288dd8eab0"
+        ],
+        "HasNestedGroups": false,
+        "Left": 145.13052598334247,
+        "Top": -251.34557500339022,
+        "Width": 1304.9748242524956,
+        "Height": 961.3758487856983,
+        "FontSize": 36.0,
+        "GroupStyleId": "00000000-0000-0000-0000-000000000000",
+        "InitialTop": -178.34557500339022,
+        "InitialHeight": 918.3758487856983,
+        "TextblockHeight": 63.0,
+        "Background": "#FFC1D676"
+      }
+    ],
+    "X": -1721.3170745509874,
+    "Y": 888.3557107174908,
+    "Zoom": 1.2864985416645576
+  }
+}

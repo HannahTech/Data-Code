@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BIM Viewer - Toronto Tower</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div class="brand">BIM Viewer</div>
+
+        <nav id="breadcrumbs" class="breadcrumbs"></nav>
+
+        <div class="topbar-actions">
+          <button id="resetBtn" class="btn">Reset</button>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="viewer-column">
+          <div class="viewer-toolbar">
+            <div class="toolbar-left">
+              <label for="levelSelect">Levels</label>
+              <select id="levelSelect">
+                <option value="">Select Level</option>
+              </select>
+
+              <label for="roomSelect">Rooms</label>
+              <select id="roomSelect">
+                <option value="">Select Room</option>
+              </select>
+            </div>
+
+            <div class="toolbar-right">
+              <span id="stateBadge" class="badge badge-primary">City View</span>
+            </div>
+          </div>
+
+          <div id="viewerContainer" class="viewer-container">
+            <canvas id="threeCanvas"></canvas>
+
+            <div class="overlay-help">
+              <h4>Navigation</h4>
+              <ul>
+                <li><strong>City View:</strong> click building</li>
+                <li><strong>Building View:</strong> click building/level</li>
+                <li><strong>Level View:</strong> click room</li>
+                <li><strong>Room View:</strong> inspect assets</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <aside class="sidebar">
+          <section class="panel">
+            <h3>Building Metadata</h3>
+            <div id="metadataPanel"></div>
+          </section>
+
+          <section class="panel">
+            <h3>Level Statistics</h3>
+            <div id="levelStatsPanel"></div>
+          </section>
+
+          <section class="panel">
+            <h3>Room Schedule</h3>
+            <div id="schedulePanel"></div>
+          </section>
+
+          <section class="panel">
+            <h3>Shared Parameters</h3>
+            <div id="sharedParamsPanel"></div>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <!-- Import Map Fix -->
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.167.1/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.167.1/examples/jsm/"
+        }
+      }
+    </script>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
