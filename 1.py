@@ -23,9 +23,7 @@ results = []
 def clean_string(val):
     if not val:
         return ""
-    # Strip non-breaking space \xa0 and standard whitespaces
     cleaned = str(val).replace('\xa0', '').strip()
-    # Remove hidden control characters
     cleaned = re.sub(r'[\r\n\t]', '', cleaned)
     return cleaned
 
@@ -63,12 +61,12 @@ def parse_csv_group(group_input):
         return GroupTypeId.Data
 
 if not run_script or not csv_file_path:
-    results.append("STOPPED: Inputs invalid or Boolean set to False.")
+    results.append("FAILED: Inputs invalid or Boolean set to False.")
 else:
     sp_file = app.OpenSharedParameterFile()
     
     if not sp_file:
-        results.append("ERROR: No Shared Parameter File linked in Revit (Manage -> Shared Parameters).")
+        results.append("FAILED: No Shared Parameter File linked in Revit.")
     else:
         # Get or create default group in Shared Parameter File
         sp_group = sp_file.Groups.get_Item("COM_Parameters")
@@ -96,7 +94,6 @@ else:
                 binding_map = doc.ParameterBindings
                 
                 for i, row in enumerate(data_rows):
-                    # Aggressively clean every cell in the row
                     clean_row = [clean_string(cell) for cell in row]
                     if len(clean_row) < 5 or not clean_row[0]:
                         continue
@@ -109,7 +106,7 @@ else:
                     
                     target_ui_group = parse_csv_group(csv_ui_group)
                     
-                    # 1. Search for parameter definition in Shared Parameter File (with whitespace protection)
+                    # 1. Search for parameter definition in Shared Parameter File
                     param_def = None
                     for grp in sp_file.Groups:
                         try:
@@ -125,19 +122,17 @@ else:
                         if param_def:
                             break
                     
-                    # 2. Auto-create in Shared Parameter File if missing
+                    # 2. Silently Auto-create in Shared Parameter File if missing
                     if not param_def:
                         try:
                             opt = ExternalDefinitionCreationOptions(param_name, SpecTypeId.String.Text)
                             param_def = sp_group.Definitions.Create(opt)
-                            results.append(f"CREATED IN SP FILE: '{param_name}'")
                         except:
                             try:
                                 opt = ExternalDefinitionCreationOptions(param_name, ParameterType.Text)
                                 param_def = sp_group.Definitions.Create(opt)
-                                results.append(f"CREATED IN SP FILE: '{param_name}'")
                             except Exception as ex:
-                                results.append(f"FAILED TO CREATE: '{param_name}' ({str(ex)})")
+                                results.append(f"FAILED: '{param_name}' - {str(ex)}")
                                 continue
                     
                     # 3. Build Category Set
@@ -147,11 +142,9 @@ else:
                         if c_name in doc_categories:
                             cat_set.Insert(doc_categories[c_name])
                             bound_cats.append(doc_categories[c_name].Name)
-                        else:
-                            results.append(f"WARNING: Category '{c_name}' not recognized in Revit.")
                     
                     if cat_set.IsEmpty:
-                        results.append(f"SKIPPED: '{param_name}' (No valid categories found).")
+                        results.append(f"FAILED: '{param_name}' (No valid categories found)")
                         continue
                     
                     binding = app.Create.NewInstanceBinding(cat_set) if is_instance else app.Create.NewTypeBinding(cat_set)
@@ -170,14 +163,14 @@ else:
                             success = binding_map.ReInsert(param_def, binding, GroupTypeId.Data)
                             if not success:
                                 success = binding_map.Insert(param_def, binding, GroupTypeId.Data)
-                            results.append(f"SUCCESS (Bound under Data Group): '{param_name}'")
+                            results.append(f"SUCCESS: '{param_name}'")
                         except Exception as ex:
-                            results.append(f"ERROR: '{param_name}' failed to bind: {str(ex)}")
+                            results.append(f"FAILED: '{param_name}' - {str(ex)}")
                     else:
-                        results.append(f"SUCCESS: Bound '{param_name}' under '{csv_ui_group}'.")
+                        results.append(f"SUCCESS: '{param_name}'")
 
         except Exception as e:
-            results.append(f"FILE OPEN ERROR: {str(e)}")
+            results.append(f"FAILED: File open error - {str(e)}")
 
         TransactionManager.Instance.TransactionTaskDone()
 
