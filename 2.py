@@ -20,13 +20,13 @@ run_script = bool(IN[1]) if IN[1] is not None else False
 
 results = []
 
-# Clean string helper
+# Function to strictly strip all leading/trailing whitespace, hidden unicode spaces (\xa0), tabs, and newlines
 def clean_string(val):
     if not val:
         return ""
     cleaned = str(val).replace('\xa0', '').strip()
     cleaned = re.sub(r'[\r\n\t]', '', cleaned)
-    return cleaned
+    return cleaned.strip()
 
 # Helper Function: Converts Column C group string into official Revit API Group
 def parse_csv_group(group_input):
@@ -68,7 +68,7 @@ else:
     binding_map = doc.ParameterBindings
     
     # =========================================================================
-    # STEP 1: REMOVE ALL PREVIOUS PROJECT / SHARED PARAMETER BINDINGS
+    # STEP 1: PURGE ALL EXISTING PARAMETER BINDINGS FROM REVIT
     # =========================================================================
     try:
         iterator = binding_map.ForwardIterator()
@@ -116,7 +116,7 @@ else:
                 pass
 
         # =========================================================================
-        # STEP 3: CREATE & BIND PARAMETERS FROM CSV
+        # STEP 3: CREATE GROUPS & BIND PARAMETERS FROM CLEANED CSV
         # =========================================================================
         try:
             with open(csv_file_path, 'r', encoding='utf-8-sig', errors='replace') as file:
@@ -125,24 +125,30 @@ else:
                 data_rows = rows[1:] if len(rows) > 1 else rows
                 
                 for i, row in enumerate(data_rows):
+                    # AGGRESSIVELY CLEAN ALL CELLS IN ROW FIRST
                     clean_row = [clean_string(cell) for cell in row]
                     if len(clean_row) < 5 or not clean_row[0]:
                         continue
                     
-                    param_name = clean_row[0]                              # Column A
-                    internal_group_name = clean_row[1]                     # Column B (Txt File Group)
-                    csv_ui_group = clean_row[2]                            # Column C (Revit UI Group)
+                    param_name = clean_row[0]                              # Column A (e.g., COM_Building_City)
+                    internal_group_name = clean_row[1]                     # Column B (e.g., COM_Building_Information)
+                    csv_ui_group = clean_row[2]                            # Column C (e.g., General)
                     is_instance = clean_row[3].upper() == "TRUE"           # Column D
                     category_names = [clean_string(c).lower() for c in clean_row[4].split(',')] # Column E
                     
                     target_ui_group = parse_csv_group(csv_ui_group)
                     
-                    # Create/Get Group in .txt file using Column B
-                    txt_group = sp_file.Groups.get_Item(internal_group_name)
+                    # 1. Strictly Clean & Get/Create Group in .txt file using Column B
+                    txt_group = None
+                    for existing_grp in sp_file.Groups:
+                        if clean_string(existing_grp.Name).lower() == internal_group_name.lower():
+                            txt_group = existing_grp
+                            break
+                    
                     if not txt_group:
                         txt_group = sp_file.Groups.Create(internal_group_name)
                     
-                    # Create/Get Parameter Definition in .txt file
+                    # 2. Get or Create Parameter Definition in the Cleaned Group
                     param_def = txt_group.Definitions.get_Item(param_name)
                     if not param_def:
                         try:
@@ -156,7 +162,7 @@ else:
                                 results.append(f"FAILED: '{param_name}' - {str(ex)}")
                                 continue
                     
-                    # Build Category Set
+                    # 3. Build Category Set
                     cat_set = app.Create.NewCategorySet()
                     for c_name in category_names:
                         if c_name in doc_categories:
@@ -168,7 +174,7 @@ else:
                     
                     binding = app.Create.NewInstanceBinding(cat_set) if is_instance else app.Create.NewTypeBinding(cat_set)
                     
-                    # Bind Parameter to Revit Project
+                    # 4. Bind Parameter to Revit Project
                     success = False
                     try:
                         success = binding_map.ReInsert(param_def, binding, target_ui_group)
