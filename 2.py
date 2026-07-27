@@ -130,10 +130,10 @@ else:
                     if len(clean_row) < 5 or not clean_row[0]:
                         continue
                     
-                    param_name = clean_row[0]                              # Column A (e.g., COM_Building_City)
-                    internal_group_name = clean_row[1]                     # Column B (e.g., COM_Building_Information)
-                    csv_ui_group = clean_row[2]                            # Column C (e.g., General)
-                    is_instance = clean_row[3].upper() == "TRUE"           # Column D
+                    param_name = clean_row[0]
+                    internal_group_name = clean_row[1]
+                    csv_ui_group = clean_row[2]
+                    is_instance = clean_row[3].upper() == "TRUE"
                     category_names = [clean_string(c).lower() for c in clean_row[4].split(',')] # Column E
                     
                     target_ui_group = parse_csv_group(csv_ui_group)
