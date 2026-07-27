@@ -64,7 +64,33 @@ def parse_csv_group(group_input):
 if not run_script or not csv_file_path:
     results.append("FAILED: Inputs invalid or Boolean set to False.")
 else:
-    # 1. Get linked Shared Parameter file or auto-create a new .txt file
+    TransactionManager.Instance.EnsureInTransaction(doc)
+    binding_map = doc.ParameterBindings
+    
+    # =========================================================================
+    # STEP 1: REMOVE ALL PREVIOUS PROJECT / SHARED PARAMETER BINDINGS
+    # =========================================================================
+    try:
+        iterator = binding_map.ForwardIterator()
+        defs_to_remove = []
+        while iterator.MoveNext():
+            if iterator.Key:
+                defs_to_remove.append(iterator.Key)
+        
+        removed_count = 0
+        for param_def in defs_to_remove:
+            try:
+                if binding_map.Remove(param_def):
+                    removed_count += 1
+            except:
+                pass
+        results.append(f"STEP 1 COMPLETE: Purged {removed_count} existing parameter bindings.")
+    except Exception as purge_ex:
+        results.append(f"STEP 1 WARNING: Could not purge parameters - {str(purge_ex)}")
+
+    # =========================================================================
+    # STEP 2: OPEN OR AUTO-CREATE SHARED PARAMETER FILE (.TXT)
+    # =========================================================================
     sp_file = app.OpenSharedParameterFile()
     
     if not sp_file:
@@ -89,35 +115,34 @@ else:
             except:
                 pass
 
-        TransactionManager.Instance.EnsureInTransaction(doc)
-        
+        # =========================================================================
+        # STEP 3: CREATE & BIND PARAMETERS FROM CSV
+        # =========================================================================
         try:
             with open(csv_file_path, 'r', encoding='utf-8-sig', errors='replace') as file:
                 reader = csv.reader(file)
                 rows = [r for r in reader if r]
                 data_rows = rows[1:] if len(rows) > 1 else rows
                 
-                binding_map = doc.ParameterBindings
-                
                 for i, row in enumerate(data_rows):
                     clean_row = [clean_string(cell) for cell in row]
                     if len(clean_row) < 5 or not clean_row[0]:
                         continue
                     
-                    param_name = clean_row[0]                              # Column A: Parameter Name
-                    internal_group_name = clean_row[1]                     # Column B: Group Name in .txt file
-                    csv_ui_group = clean_row[2]                            # Column C: Revit UI Group
-                    is_instance = clean_row[3].upper() == "TRUE"           # Column D: Instance/Type
-                    category_names = [clean_string(c).lower() for c in clean_row[4].split(',')] # Column E: Categories
+                    param_name = clean_row[0]                              # Column A
+                    internal_group_name = clean_row[1]                     # Column B (Txt File Group)
+                    csv_ui_group = clean_row[2]                            # Column C (Revit UI Group)
+                    is_instance = clean_row[3].upper() == "TRUE"           # Column D
+                    category_names = [clean_string(c).lower() for c in clean_row[4].split(',')] # Column E
                     
                     target_ui_group = parse_csv_group(csv_ui_group)
                     
-                    # 2. Get or Create the Group in the .txt File using Column B
+                    # Create/Get Group in .txt file using Column B
                     txt_group = sp_file.Groups.get_Item(internal_group_name)
                     if not txt_group:
                         txt_group = sp_file.Groups.Create(internal_group_name)
                     
-                    # 3. Get or Create Definition in the Group
+                    # Create/Get Parameter Definition in .txt file
                     param_def = txt_group.Definitions.get_Item(param_name)
                     if not param_def:
                         try:
@@ -128,10 +153,10 @@ else:
                                 opt = ExternalDefinitionCreationOptions(param_name, ParameterType.Text)
                                 param_def = txt_group.Definitions.Create(opt)
                             except Exception as ex:
-                                results.append(f"FAILED: Could not create '{param_name}' - {str(ex)}")
+                                results.append(f"FAILED: '{param_name}' - {str(ex)}")
                                 continue
                     
-                    # 4. Build Category Set
+                    # Build Category Set
                     cat_set = app.Create.NewCategorySet()
                     for c_name in category_names:
                         if c_name in doc_categories:
@@ -143,7 +168,7 @@ else:
                     
                     binding = app.Create.NewInstanceBinding(cat_set) if is_instance else app.Create.NewTypeBinding(cat_set)
                     
-                    # 5. Bind Parameter to Revit Project
+                    # Bind Parameter to Revit Project
                     success = False
                     try:
                         success = binding_map.ReInsert(param_def, binding, target_ui_group)
@@ -166,6 +191,6 @@ else:
         except Exception as e:
             results.append(f"FAILED: File error - {str(e)}")
 
-        TransactionManager.Instance.TransactionTaskDone()
+    TransactionManager.Instance.TransactionTaskDone()
 
 OUT = results
