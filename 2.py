@@ -20,18 +20,19 @@ run_script = bool(IN[1]) if IN[1] is not None else False
 
 results = []
 
-# Function to strictly strip all leading/trailing whitespace, hidden unicode spaces (\xa0), tabs, and newlines
-def clean_string(val):
+def sanitize_param_name(val):
     if not val:
         return ""
-    cleaned = str(val).replace('\xa0', '').strip()
-    cleaned = re.sub(r'[\r\n\t]', '', cleaned)
+    return re.sub(r'[^a-zA-Z0-9_]', '', str(val))
+
+def sanitize_text(val):
+    if not val:
+        return ""
+    cleaned = re.sub(r'[^a-zA-Z0-9_\s]', '', str(val))
     return cleaned.strip()
 
-# Helper Function: Converts Column C group string into official Revit API Group
 def parse_csv_group(group_input):
-    g_str = clean_string(group_input).lower().replace("pg_", "").replace(" ", "").replace("_", "").replace("and", "")
-    
+    g_str = sanitize_param_name(group_input).lower().replace("pg", "").replace("and", "")
     group_map = {
         "identitydata": "IdentityData",
         "identity": "IdentityData",
@@ -53,9 +54,7 @@ def parse_csv_group(group_input):
         "materialsfinishes": "Materials",
         "materials": "Materials"
     }
-    
     target_attr = group_map.get(g_str, "Data")
-    
     try:
         return getattr(GroupTypeId, target_attr)
     except AttributeError:
@@ -65,28 +64,38 @@ if not run_script or not csv_file_path:
     results.append("FAILED: Inputs invalid or Boolean set to False.")
 else:
     TransactionManager.Instance.EnsureInTransaction(doc)
-    binding_map = doc.ParameterBindings
     
     # =========================================================================
-    # STEP 1: PURGE ALL EXISTING PARAMETER BINDINGS FROM REVIT
+    # STEP 1: COMPLETE DELETION OF ALL SHARED PARAMETERS IN REVIT DOCUMENT
     # =========================================================================
     try:
+        # A. Unbind all Parameter Bindings
+        binding_map = doc.ParameterBindings
         iterator = binding_map.ForwardIterator()
         defs_to_remove = []
         while iterator.MoveNext():
             if iterator.Key:
                 defs_to_remove.append(iterator.Key)
         
-        removed_count = 0
         for param_def in defs_to_remove:
             try:
-                if binding_map.Remove(param_def):
-                    removed_count += 1
+                binding_map.Remove(param_def)
             except:
                 pass
-        results.append(f"STEP 1 COMPLETE: Purged {removed_count} existing parameter bindings.")
+
+        # B. Collect & Force Delete All SharedParameterElements from Doc Database
+        sp_elements = FilteredElementCollector(doc).OfClass(SharedParameterElement).ToElements()
+        deleted_count = 0
+        for sp_elem in sp_elements:
+            try:
+                doc.Delete(sp_elem.Id)
+                deleted_count += 1
+            except:
+                pass
+                
+        results.append(f"STEP 1 COMPLETE: Force-deleted {deleted_count} shared parameters from model database.")
     except Exception as purge_ex:
-        results.append(f"STEP 1 WARNING: Could not purge parameters - {str(purge_ex)}")
+        results.append(f"STEP 1 WARNING: Could not purge - {str(purge_ex)}")
 
     # =========================================================================
     # STEP 2: OPEN OR AUTO-CREATE SHARED PARAMETER FILE (.TXT)
@@ -111,44 +120,47 @@ else:
             try:
                 cat_id_val = cat.Id.Value if hasattr(cat.Id, 'Value') else cat.Id.IntegerValue
                 if cat.AllowsBoundParameters or cat_id_val == int(BuiltInCategory.OST_ProjectInformation):
-                    doc_categories[clean_string(cat.Name).lower()] = cat
+                    doc_categories[sanitize_text(cat.Name).lower()] = cat
             except:
                 pass
 
         # =========================================================================
-        # STEP 3: CREATE GROUPS & BIND PARAMETERS FROM CLEANED CSV
+        # STEP 3: RE-CREATE GROUPS & BIND CLEANED PARAMETERS FROM CSV
         # =========================================================================
         try:
-            with open(csv_file_path, 'r', encoding='utf-8-sig', errors='replace') as file:
+            with open(csv_file_path, 'r', encoding='utf-8-sig', errors='ignore') as file:
                 reader = csv.reader(file)
                 rows = [r for r in reader if r]
                 data_rows = rows[1:] if len(rows) > 1 else rows
                 
+                binding_map = doc.ParameterBindings
+                
                 for i, row in enumerate(data_rows):
-                    # AGGRESSIVELY CLEAN ALL CELLS IN ROW FIRST
-                    clean_row = [clean_string(cell) for cell in row]
-                    if len(clean_row) < 5 or not clean_row[0]:
+                    if len(row) < 5 or not row[0]:
                         continue
                     
-                    param_name = clean_row[0]
-                    internal_group_name = clean_row[1]
-                    csv_ui_group = clean_row[2]
-                    is_instance = clean_row[3].upper() == "TRUE"
-                    category_names = [clean_string(c).lower() for c in clean_row[4].split(',')] # Column E
+                    param_name = sanitize_param_name(row[0])               # Column A
+                    internal_group_name = sanitize_param_name(row[1])      # Column B
+                    csv_ui_group = sanitize_text(row[2])                   # Column C
+                    is_instance = str(row[3]).strip().upper() == "TRUE"    # Column D
+                    category_names = [sanitize_text(c).lower() for c in str(row[4]).split(',')] # Column E
                     
+                    if not param_name:
+                        continue
+                        
                     target_ui_group = parse_csv_group(csv_ui_group)
                     
-                    # 1. Strictly Clean & Get/Create Group in .txt file using Column B
+                    # Get/Create Group in .txt file using Column B
                     txt_group = None
                     for existing_grp in sp_file.Groups:
-                        if clean_string(existing_grp.Name).lower() == internal_group_name.lower():
+                        if sanitize_param_name(existing_grp.Name).lower() == internal_group_name.lower():
                             txt_group = existing_grp
                             break
                     
                     if not txt_group:
                         txt_group = sp_file.Groups.Create(internal_group_name)
                     
-                    # 2. Get or Create Parameter Definition in the Cleaned Group
+                    # Get/Create Parameter Definition in .txt File
                     param_def = txt_group.Definitions.get_Item(param_name)
                     if not param_def:
                         try:
@@ -162,7 +174,7 @@ else:
                                 results.append(f"FAILED: '{param_name}' - {str(ex)}")
                                 continue
                     
-                    # 3. Build Category Set
+                    # Build Category Set
                     cat_set = app.Create.NewCategorySet()
                     for c_name in category_names:
                         if c_name in doc_categories:
@@ -174,7 +186,7 @@ else:
                     
                     binding = app.Create.NewInstanceBinding(cat_set) if is_instance else app.Create.NewTypeBinding(cat_set)
                     
-                    # 4. Bind Parameter to Revit Project
+                    # Bind Parameter to Revit Project
                     success = False
                     try:
                         success = binding_map.ReInsert(param_def, binding, target_ui_group)
