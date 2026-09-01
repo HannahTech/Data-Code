@@ -217,7 +217,7 @@ def get_group_id(group_name):
     except:
         pass
 
-    # Legacy / API Fallback
+    # Legacy Fallback
     try:
         bip_name = "PG_DATA"
         if key in ["identitydata", "identity", "td_asset_identification", "td_assetidentification"]:
@@ -270,17 +270,14 @@ def open_shared_file(path):
         return None
 
 def find_definition(shared_file, parameter_name):
-    if shared_file is None:
+    if shared_file is None or not parameter_name:
         return None
-    target = clean_name(parameter_name)
+    target_clean = parameter_name.strip().lower()
     try:
         for group in shared_file.Groups:
-            try:
-                definition = group.Definitions.get_Item(target)
-                if definition is not None:
+            for definition in group.Definitions:
+                if definition.Name.strip().lower() == target_clean:
                     return definition
-            except:
-                pass
     except:
         pass
     return None
