@@ -186,6 +186,7 @@ def category_matches(csv_categories, family_category):
     return False
 
 def get_group_id(group_name):
+    # Strip non-alphanumeric characters for clean string comparison
     key = normalize(group_name)
 
     # Standard GroupTypeId mapping for Revit 2022+
@@ -217,23 +218,26 @@ def get_group_id(group_name):
     except:
         pass
 
-    # Fallback for legacy Revit versions (using reflection to safely access BuiltInParameterGroup)
+    # Fallback for BuiltInParameterGroup (Revit 2021 & older or fallback handling)
     try:
-        bipg_enum = System.Enum.Parse(Autodesk.Revit.DB.BuiltInParameterGroup, "PG_DATA")
         if key in ["identitydata", "identity", "td_asset_identification", "td_assetidentification"]:
-            bipg_enum = System.Enum.Parse(Autodesk.Revit.DB.BuiltInParameterGroup, "PG_IDENTITY_DATA")
+            bipg_enum = BuiltInParameterGroup.PG_IDENTITY_DATA
         elif key in ["modelproperties", "adskmodelproperties"]:
-            bipg_enum = System.Enum.Parse(Autodesk.Revit.DB.BuiltInParameterGroup, "PG_ADSK_MODEL_PROPERTIES")
+            bipg_enum = BuiltInParameterGroup.PG_ADSK_MODEL_PROPERTIES
         elif key == "general":
-            bipg_enum = System.Enum.Parse(Autodesk.Revit.DB.BuiltInParameterGroup, "PG_GENERAL")
-        elif key == "dimensions":
-            bipg_enum = System.Enum.Parse(Autodesk.Revit.DB.BuiltInParameterGroup, "PG_GEOMETRY")
+            bipg_enum = BuiltInParameterGroup.PG_GENERAL
+        elif key == "data":
+            bipg_enum = BuiltInParameterGroup.PG_DATA
+        elif key in ["dimensions", "geometry"]:
+            bipg_enum = BuiltInParameterGroup.PG_GEOMETRY
         elif key == "constraints":
-            bipg_enum = System.Enum.Parse(Autodesk.Revit.DB.BuiltInParameterGroup, "PG_CONSTRAINTS")
+            bipg_enum = BuiltInParameterGroup.PG_CONSTRAINTS
         elif key == "graphics":
-            bipg_enum = System.Enum.Parse(Autodesk.Revit.DB.BuiltInParameterGroup, "PG_GRAPHICS")
+            bipg_enum = BuiltInParameterGroup.PG_GRAPHICS
         elif key in ["materialsfinishes", "materialsandfinishes", "materials"]:
-            bipg_enum = System.Enum.Parse(Autodesk.Revit.DB.BuiltInParameterGroup, "PG_MATERIALS")
+            bipg_enum = BuiltInParameterGroup.PG_MATERIALS
+        else:
+            bipg_enum = BuiltInParameterGroup.PG_DATA
 
         try:
             return ParameterUtils.GetParameterGroupTypeId(bipg_enum)
@@ -241,7 +245,7 @@ def get_group_id(group_name):
             return bipg_enum
     except:
         return None
-
+        
 def existing_group_id(family_parameter):
     try:
         return family_parameter.Definition.GetGroupTypeId()
