@@ -217,7 +217,7 @@ def get_group_id(group_name):
     except:
         pass
 
-    # Legacy Fallback
+    # Legacy / API Fallback
     try:
         bip_name = "PG_DATA"
         if key in ["identitydata", "identity", "td_asset_identification", "td_assetidentification"]:
