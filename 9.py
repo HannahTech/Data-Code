@@ -188,7 +188,7 @@ def category_matches(csv_categories, family_category):
 def get_group_id(group_name):
     key = normalize(group_name)
 
-    # Standard GroupTypeId mapping for Revit 2022+ through Revit 2026+
+    # Standard GroupTypeId mapping for Revit 2022+ / 2026+
     try:
         if key in ["identitydata", "identity", "td_asset_identification", "td_assetidentification"]:
             return GroupTypeId.IdentityData
@@ -217,7 +217,7 @@ def get_group_id(group_name):
     except:
         pass
 
-    # Legacy Fallback using direct BuiltInParameterGroup parsing
+    # Legacy / API Fallback
     try:
         bip_name = "PG_DATA"
         if key in ["identitydata", "identity", "td_asset_identification", "td_assetidentification"]:
