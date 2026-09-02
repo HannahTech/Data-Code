@@ -1,0 +1,8 @@
+﻿Parameter,Scope,RevitUIGroup,Categories,DataType,DefaultValue,PopulateFromAppendix,AppendixHeaderPriority,Export,SharedParameterGroup,GUID,Description,Notes
+TD_Building_Address,ProjectInformation,General,Project Information,TEXT,,FALSE,,TRUE,TD_Building_Information,adbb5295-60f3-406e-8dc9-0c192cd93b7b,Building address.,Project Information parameter.
+TD_Building_City,ProjectInformation,General,Project Information,TEXT,,FALSE,,TRUE,TD_Building_Information,0b502d71-c6f0-4296-bcf1-931664780041,Building city.,Project Information parameter.
+TD_Building_Class,ProjectInformation,General,Project Information,TEXT,,FALSE,,TRUE,TD_Building_Information,a29c7098-3fc4-4852-be84-2e86b31b862a,Building class.,Project Information parameter.
+TD_Building_Country,ProjectInformation,General,Project Information,TEXT,,FALSE,,TRUE,TD_Building_Information,23dfa3ad-415e-4b2e-8dfa-6f7ba167448a,Building country.,Project Information parameter.
+TD_Building_ID,ProjectInformation,General,Project Information,TEXT,,FALSE,,TRUE,TD_Building_Information,26884f36-59df-4e7d-8981-5d35f7c88e83,Building ID from project information.,Project Information parameter.
+TD_Building_Name,ProjectInformation,General,Project Information,TEXT,,FALSE,,TRUE,TD_Building_Information,491f6ca8-a822-49af-b394-5c71537ee5cf,Building name.,Project Information parameter.
+TD_Building_Province,ProjectInformation,General,Project Information,TEXT,,FALSE,,TRUE,TD_Building_Information,7fcb53d8-529d-417e-8471-40d344382049,Province/state.,Project Information parameter.

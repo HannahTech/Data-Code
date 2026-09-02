@@ -1,0 +1,11 @@
+﻿TargetParameter,SourceHeaderPriority,Role,Policy,Notes
+TD_Type_ID,TD_Type_ID,KEY,Do not overwrite,You manually enter TD_Type_ID in the family. This column is only the lookup key.
+TD_Description,TD_Description [Standard]|TD_Description (Standard)|TD_Description_Standard|TD_Description,VALUE,Overwrite allowed,Standardized description is preferred over the non-standard description.
+TD_Manufacturer,TD_Manufacturer|Manufacturer,VALUE,Overwrite allowed,
+TD_Manufacturer_Model,TD_Manufacturer_Model|Manufacturer_Model|Manufacturer Model,VALUE,Overwrite allowed,
+TD_Color,TD_Colour|TD_Color|Colour|Color,VALUE,Overwrite allowed,Your appendix screenshot uses TD_Colour; Revit master parameter is TD_Color.
+TD_Material,TD_Material|Material,VALUE,Overwrite allowed,
+TD_Uniformat_Code,TD_Uniformat_Code|Uniformat_Code|Uniformat Code,VALUE,Overwrite allowed,Filled only if that column exists in the appendix.
+TD_Omniclass_Code,TD_Omniclass_Code|Omniclass_Code|Omniclass Code,VALUE,Overwrite allowed,Filled only if that column exists in the appendix.
+TD_Furniture_Footprint_Area,TD_Furniture_Footprint_Area|Furniture_Footprint_Area|Furniture Footprint Area,VALUE,Overwrite allowed,Filled only if that column exists in the appendix.
+TD_Clearance_Area,TD_Clearance_Area|Clearance_Area|Clearance Area,VALUE,Overwrite allowed,Filled only if that column exists in the appendix.
