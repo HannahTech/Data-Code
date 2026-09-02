@@ -1,0 +1,11 @@
+﻿TargetParameter,SourceHeaderPriority,Role,Policy,Notes
+TD_Type_ID,TD_Type_ID,KEY,Never overwritten,Manual family lookup key.
+TD_Description,TD_Description [Standard]|TD_Description (Standard)|TD_Description_Standard|TD_Description,VALUE,Can overwrite,Standard description has priority.
+TD_Manufacturer,TD_Manufacturer|Manufacturer,VALUE,Can overwrite,
+TD_Manufacturer_Model,TD_Manufacturer_Model|Manufacturer_Model|Manufacturer Model,VALUE,Can overwrite,
+TD_Color,TD_Colour|TD_Color|Colour|Color,VALUE,Can overwrite,Maps appendix TD_Colour to Revit TD_Color.
+TD_Material,TD_Material|Material,VALUE,Can overwrite,
+TD_Uniformat_Code,TD_Uniformat_Code|Uniformat_Code|Uniformat Code,VALUE,Can overwrite,Only if the appendix contains this field.
+TD_Omniclass_Code,TD_Omniclass_Code|Omniclass_Code|Omniclass Code,VALUE,Can overwrite,Only if the appendix contains this field.
+TD_Furniture_Footprint_Area,TD_Furniture_Footprint_Area|Furniture_Footprint_Area|Furniture Footprint Area,VALUE,Can overwrite,Only if the appendix contains this field.
+TD_Clearance_Area,TD_Clearance_Area|Clearance_Area|Clearance Area,VALUE,Can overwrite,Only if the appendix contains this field.

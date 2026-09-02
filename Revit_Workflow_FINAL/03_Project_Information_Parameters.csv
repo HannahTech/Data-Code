@@ -1,0 +1,8 @@
+﻿Parameter,Scope,RevitUIGroup,Categories,DataType,DefaultValue,PopulateFromAppendix,AppendixHeaderPriority,Export,SharedParameterGroup,Description,Notes
+TD_Building_Address,ProjectInformation,General,Project Information,TEXT,,FALSE,,TRUE,TD_Building_Information,Building address.,Project Information parameter.
+TD_Building_City,ProjectInformation,General,Project Information,TEXT,,FALSE,,TRUE,TD_Building_Information,Building city.,Project Information parameter.
+TD_Building_Class,ProjectInformation,General,Project Information,TEXT,,FALSE,,TRUE,TD_Building_Information,Building class.,Project Information parameter.
+TD_Building_Country,ProjectInformation,General,Project Information,TEXT,,FALSE,,TRUE,TD_Building_Information,Building country.,Project Information parameter.
+TD_Building_ID,ProjectInformation,General,Project Information,TEXT,,FALSE,,TRUE,TD_Building_Information,Building ID from project information.,Project Information parameter.
+TD_Building_Name,ProjectInformation,General,Project Information,TEXT,,FALSE,,TRUE,TD_Building_Information,Building name.,Project Information parameter.
+TD_Building_Province,ProjectInformation,General,Project Information,TEXT,,FALSE,,TRUE,TD_Building_Information,Province/state.,Project Information parameter.

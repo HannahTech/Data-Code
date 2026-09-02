@@ -1,0 +1,20 @@
+IMPORTANT — SHARED PARAMETER GUIDS
+
+Use your ORIGINAL TD shared parameter .txt file as the shared-parameter input for Steps 1 and 3.
+
+I intentionally did NOT regenerate that file in this final package.
+
+Why:
+A Revit shared parameter's GUID is its identity. The screenshot you supplied shows an existing TD shared-parameter file.
+Generating a new file with new GUIDs would create same-name/different-GUID parameters and can fragment your data standard.
+
+Place your original file in this folder if you want, for example:
+    TD_Shared_Parameters.txt
+
+Then select that exact file in Dynamo.
+
+The final scripts treat the selected shared parameter TXT as the GUID authority.
+The master CSV does not carry a competing GUID list.
+
+If you want a truly self-contained ZIP with the shared parameter TXT included,
+upload the original .txt file itself (not a screenshot), and it can be inserted unchanged.
